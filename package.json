@@ -1,0 +1,20 @@
+{
+  "name": "practive-nodejs-chatbot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "test": "npm run test"
+  },
+  "author": "Nahdian",
+  "license": "ISC",
+  "description": "",
+  "type": "module",
+  "dependencies": {
+    "dotenv": "^17.2.0",
+    "express": "^5.1.0",
+    "nodemon": "^3.1.10",
+    "twilio": "^5.7.3",
+    "winston": "^3.17.0"
+  }
+}
