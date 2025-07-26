@@ -1,7 +1,8 @@
 import dotenv from 'dotenv';
 import twilio from 'twilio';
 import axios from 'axios';
-import e from 'express';
+import he from 'he';
+import { logger } from '../application/logging.js'
 
 dotenv.config();
 
@@ -44,47 +45,65 @@ const responseTrivia = async (req, res) => {
     if (userMessage === 'start') {
         try {
             const response = await axios.get('https://opentdb.com/api.php?amount=5&category=27&difficulty=easy&type=boolean');
-            console.log('Trivia questions fetched successfully');
+            logger.info('Trivia questions fetched successfully');
 
             const questions = response.data.results;
 
             results.set('results', questions);
-            results.set('currentQuestion', 1);
+            results.set('lastIndex', 0);
+            results.set('isAlreadytStart', true);
+            results.set('currentNumberQuestion', 1);
             results.set('score', 0);
 
-            twiml.message(results.get('results')[0].question);
+            twiml.message(he.decode(results.get('results')[0].question));
         } catch (error) {
+            logger.info('Error fetching trivia questions:', error.message);
             twiml.message('Sorry, I could not fetch trivia questions at the moment. Please try again later.');
         }
     } else if (userMessage === 'true' || userMessage === 'false') {
-        const currentQuestion = results.get('currentQuestion');
+        if (results.get('isAlreadytStart') !== true) {
+            twiml.message('Please type "start" to begin the trivia challenge.');
+            res.writeHead(200, { 'Content-Type': 'text/xml' });
+            return res.end(twiml.toString());
+        }
 
-        const question = results.get('results')[currentQuestion + 1].question;
-        const correctAnswer = results.get('results')[currentQuestion].correct_answer.toLowerCase();
+        const lastIndex = results.get('lastIndex');
+        const currentNumberQuestion = results.get('currentNumberQuestion');
+        const correctAnswer = results.get('results')[lastIndex].correct_answer.toLowerCase();
 
-        if (currentQuestion < 5) {
+        if (currentNumberQuestion < 5) {
+            const questionResult = results.get('results')[lastIndex + 1].question;
+            const question = he.decode(questionResult);
+
             if (userMessage === correctAnswer) {
-                console.log('correct');
-
+                results.set('lastIndex', results.get('lastIndex') + 1);
                 results.set('score', results.get('score') + 1);
-                results.set('currentQuestion', currentQuestion + 1);
+                results.set('currentNumberQuestion', currentNumberQuestion + 1);
 
-                twiml.message(`Correct! The answer is true`);
+                twiml.message(`Correct! The answer is ${correctAnswer}`);
                 twiml.message(question);
             } else {
-                console.log('incorrect');
-                results.set('currentQuestion', currentQuestion + 1);
+                results.set('lastIndex', results.get('lastIndex') + 1);
+                results.set('currentNumberQuestion', currentNumberQuestion + 1);
 
-                twiml.message(`Incorrect! The answer is false`);
+                twiml.message(`Incorrect! The answer is ${correctAnswer}`);
                 twiml.message(question);
             }
         } else {
-            twiml.message(`Congratulations! 🎉 You've completed the trivia challenge! Your final score is ${results.get('score')} out of 5.`);
+            if (userMessage === correctAnswer) {
+                results.set('score', results.get('score') + 1);
 
+                twiml.message(`Correct! The answer is ${correctAnswer}`);
+            } else {
+                twiml.message(`Incorrect! The answer is ${correctAnswer}`);
+            }
+
+            twiml.message(`Congratulations! 🎉 You've completed the trivia challenge! Your final score is ${results.get('score')} out of 5.\n\nType "start" to begin another the animals trivia.`);
             results.clear();
         }
     } else if (userMessage === 'end') {
-        twiml.message(`Thank you for playing! Your final score is ${results.get('score')} out of 5.`);
+        const score = results.get('score') || 0;
+        twiml.message(`Thank you for playing! Your final score is ${score} out of 5.`);
         results.clear();
     }
     else {
